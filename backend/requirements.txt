@@ -1,0 +1,52 @@
+# ==========================================================================
+# Dependencias de runtime. Generado por generate_infra.py.
+# ==========================================================================
+
+# --- Web ---
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+gunicorn==26.2.0
+# El modulo uvicorn.workers esta deprecado desde uvicorn 0.30: el worker de
+# gunicorn viene de este paquete.
+uvicorn-worker==0.4.0
+
+# --- Base de datos ---
+sqlalchemy[asyncio]==2.1.4
+asyncpg==0.32.0
+alembic==1.20.0
+
+# --- Colas y cache ---
+# OJO: arq exige redis<6. No subir a redis-py 8.x mientras siga ARQ.
+redis[hiredis]==5.3.1
+arq==0.28.0
+
+# --- Autenticacion y cifrado ---
+# PyJWT en lugar de python-jose, y pwdlib (argon2) en lugar de passlib
+# (sin releases desde 2020 y roto con bcrypt >= 4.1).
+pyjwt==2.15.1
+pwdlib[argon2]==0.3.1
+cryptography==50.0.2
+python-multipart==0.0.32
+
+# --- Configuracion y validacion ---
+pydantic==2.14.0
+pydantic-settings==2.15.0
+
+# --- Object storage (prefijo por tenant) ---
+boto3==1.43.111
+
+# --- HTTP ---
+httpx==0.28.1
+
+# ==========================================================================
+# Integraciones AR (AFIP/ARCA, MercadoPago, WhatsApp)
+# ==========================================================================
+# NO se instalan clientes de gobierno aca. Verificado: `pyafipws` es codigo de
+# Python 2 (su setup.py usa `print "..."`) y no compila en 3.13/3.14, y la
+# version 2.8.0 que usaba el scaffold original no existe en PyPI. Ademas AFIP
+# (hoy ARCA) exige certificado y CUIT *por club*.
+#
+# Implementalo dentro de la app (app/credentials.py ya guarda el material
+# cifrado por tenant) con un cliente SOAP/HTTP propio o bien con un fork
+# Python 3 mantenido. Las credenciales de MercadoPago y WhatsApp se manejan
+# igual: cifradas por tenant.

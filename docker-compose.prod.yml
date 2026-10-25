@@ -1,0 +1,180 @@
+# ==========================================================================
+# Override de PRODUCCION.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Diferencias clave: TLS con wildcard por DNS-01, redirect 80->443, sin puertos
+# de datos publicados, sin codigo montado, imagen de produccion y replicas.
+# ==========================================================================
+name: cms-sas
+
+services:
+  traefik:
+    command:
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=true"
+      - "--ping=true"
+      - "--api.dashboard=false"
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=cms_sas_edge"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.traefik.address=:8080"
+      # Mismos entrypoints TCP que en desarrollo: las labels TCP de postgres,
+      # redis y minio (docker-compose.yml) tienen que resolver tambien aca. En
+      # produccion no se publican: `ports: !override` deja solo 80/443.
+      - "--entrypoints.postgres.address=:5432"
+      - "--entrypoints.redis-broker.address=:6379"
+      - "--entrypoints.redis-cache.address=:6380"
+      - "--entrypoints.minio-api.address=:9000"
+      - "--entrypoints.minio-console.address=:9001"
+      # DNS-01: unico desafio que permite emitir wildcard (necesario para
+      # *.cms-sas.pro y para los dominios propios de cada club).
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.provider=${ACME_DNS_PROVIDER}"
+      - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+      - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.propagation.delayBeforeChecks=30s"
+      - "--metrics.prometheus=true"
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes: !override
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_dynamic:/etc/traefik/dynamic
+      - traefik_acme:/acme
+    environment:
+      # Variables del provider DNS elegido en ACME_DNS_PROVIDER.
+      # Traefik solo lee las del provider activo.
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_HOSTED_ZONE_ID: ${AWS_HOSTED_ZONE_ID:-}
+      GANDIV5_API_KEY: ${GANDIV5_API_KEY:-}
+      HETZNER_API_KEY: ${HETZNER_API_KEY:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+
+  postgres:
+    # Sin puertos publicados: en produccion los datos no se exponen ni por
+    # loopback.
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+
+  redis-broker:
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_BROKER_PASSWORD}"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory"
+      - "${REDIS_BROKER_MAXMEMORY:-1gb}"
+      - "--maxmemory-policy"
+      - "noeviction"
+
+  redis-cache:
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_CACHE_PASSWORD}"
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "${REDIS_CACHE_MAXMEMORY:-1gb}"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+
+  minio:
+    # En produccion normalmente se usa S3/R2 en vez de MinIO: cambia S3_* en el
+    # entorno de la API y saca este servicio del compose.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    command: !reset []
+    environment:
+      ENVIRONMENT: production
+      TRAEFIK_ENTRYPOINTS: web,websecure
+      TRAEFIK_CERT_RESOLVER: letsencrypt
+    volumes: !override
+      - traefik_dynamic:/etc/traefik/dynamic
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  arq-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      ENVIRONMENT: production
+      TRAEFIK_ENTRYPOINTS: web,websecure
+      TRAEFIK_CERT_RESOLVER: letsencrypt
+    volumes: !override
+      - traefik_dynamic:/etc/traefik/dynamic
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  nextjs:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: !reset []
+    environment:
+      NODE_ENV: production
+    volumes: !reset []
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  migrate:
+    volumes: !override
+      - traefik_dynamic:/etc/traefik/dynamic
+
+  db-roles:
+    volumes: !override
+      - ./docker/postgres/roles.sh:/usr/local/bin/roles.sh:ro
+
+volumes:
+  traefik_acme:

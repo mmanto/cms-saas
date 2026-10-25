@@ -1,0 +1,539 @@
+# ==========================================================================
+# Stack de DESARROLLO.  Produccion: ver docker-compose.prod.yml
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Generado por generate_infra.py. No editar a mano: volve a correr el generador.
+# ==========================================================================
+name: cms-sas
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Entorno comun a API y worker. Las credenciales de integraciones (AFIP,
+# MercadoPago, WhatsApp) NO van aca: son por tenant y viven cifradas en la DB.
+x-app-env: &app-env
+  ENVIRONMENT: development
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-America/Argentina/Buenos_Aires}
+  MIGRATOR_DATABASE_URL: postgresql+asyncpg://saas_migrator:${MIGRATOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  APP_DATABASE_URL: postgresql+asyncpg://saas_app:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  PLATFORM_DATABASE_URL: postgresql+asyncpg://saas_platform:${PLATFORM_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  REDIS_BROKER_URL: redis://:${REDIS_BROKER_PASSWORD}@redis-broker:6379/0
+  REDIS_CACHE_URL: redis://:${REDIS_CACHE_PASSWORD}@redis-cache:6379/0
+  JWT_SECRET: ${JWT_SECRET}
+  CREDENTIALS_KEY: ${CREDENTIALS_KEY}
+  SAAS_BASE_DOMAIN: ${SAAS_BASE_DOMAIN}
+  TRAEFIK_DYNAMIC_DIR: /etc/traefik/dynamic
+  TRAEFIK_ENTRYPOINTS: web
+  TRAEFIK_CERT_RESOLVER: ""
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  S3_BUCKET: ${S3_BUCKET}
+  S3_REGION: ${S3_REGION}
+  S3_AUTO_CREATE_BUCKET: "true"
+
+x-db-depends: &db-depends
+  postgres:
+    condition: service_healthy
+  redis-broker:
+    condition: service_healthy
+  redis-cache:
+    condition: service_healthy
+
+services:
+  # ------------------------------------------------------------------
+  # Borde: TLS, dominios por tenant y ruteo
+  # ------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.7.14
+    container_name: cms_sas_traefik
+    command:
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=true"
+      - "--ping=true"
+      # Solo desarrollo: la API/dashboard escuchan en 127.0.0.1 y nada mas.
+      # En produccion esto viene apagado (ver docker-compose.prod.yml).
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=cms_sas_edge"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+      # Entrypoints TCP para los servicios de datos. La red `data` es internal
+      # (sin salida a internet) y Docker DESCARTA los puertos publicados de un
+      # contenedor que solo vive en redes internas: por eso no alcanza con
+      # `ports:` en postgres/redis/minio. Los publica Traefik, que tambien esta
+      # en `edge`, y reenvia el TCP tal cual (passthrough): desde el host las
+      # URLs siguen siendo 127.0.0.1:<puerto original>.
+      - "--entrypoints.postgres.address=:5432"
+      - "--entrypoints.redis-broker.address=:6379"
+      - "--entrypoints.redis-cache.address=:6380"
+      - "--entrypoints.minio-api.address=:9000"
+      - "--entrypoints.minio-console.address=:9001"
+      - "--metrics.prometheus=true"
+    ports:
+      # Puerto del borde. En desarrollo cambialo si el 80 esta ocupado.
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      # Solo loopback: acceso desde tu maquina, nada mas.
+      - "127.0.0.1:${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${REDIS_BROKER_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_CACHE_PORT:-6380}:6380"
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_dynamic:/etc/traefik/dynamic
+    networks:
+      - edge
+      # Los servicios de datos solo estan en `data`: para rutear su TCP,
+      # Traefik tiene que estar tambien ahi.
+      - data
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # ------------------------------------------------------------------
+  # Datos
+  # ------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:18-3.6-alpine
+    container_name: cms_sas_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+    volumes:
+      # postgres >= 18 usa PGDATA=/var/lib/postgresql/<major>/docker y aborta si
+      # encuentra un mount en /var/lib/postgresql/data. El volumen va un nivel
+      # arriba; ademas es lo que permite `pg_upgrade --link` sin cruzar mounts.
+      - postgres_data:/var/lib/postgresql
+    # psql/DBeaver desde tu maquina: 127.0.0.1:${POSTGRES_PORT:-5432}, publicado
+    # por Traefik (ver entrypoints/ports del servicio traefik).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_data"
+      - "traefik.tcp.routers.postgres.entrypoints=postgres"
+      - "traefik.tcp.routers.postgres.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.postgres.service=postgres"
+      - "traefik.tcp.services.postgres.loadbalancer.server.port=5432"
+    shm_size: 256mb
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  redis-broker:
+    image: redis:8.10-alpine
+    container_name: cms_sas_redis_broker
+    # Cola de trabajo: noeviction es obligatorio. Si Redis empieza a desalojar
+    # claves, ARQ pierde jobs.
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_BROKER_PASSWORD}"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory"
+      - "${REDIS_BROKER_MAXMEMORY:-256mb}"
+      - "--maxmemory-policy"
+      - "noeviction"
+    environment:
+      # redis-cli lee REDISCLI_AUTH del entorno: el healthcheck no filtra el
+      # password en la lista de procesos.
+      REDISCLI_AUTH: ${REDIS_BROKER_PASSWORD}
+    volumes:
+      # Persistencia de la cola: sin este mount el AOF vive en el filesystem del
+      # contenedor y los jobs encolados de ARQ se pierden al recrearlo.
+      - redis_broker_data:/data
+    # redis-cli desde tu maquina: 127.0.0.1:${REDIS_BROKER_PORT:-6379}.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_data"
+      - "traefik.tcp.routers.redis-broker.entrypoints=redis-broker"
+      - "traefik.tcp.routers.redis-broker.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.redis-broker.service=redis-broker"
+      - "traefik.tcp.services.redis-broker.loadbalancer.server.port=6379"
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  redis-cache:
+    image: redis:8.10-alpine
+    container_name: cms_sas_redis_cache
+    # Cache: instancia separada del broker para poder desalojar sin perder jobs.
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_CACHE_PASSWORD}"
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "${REDIS_CACHE_MAXMEMORY:-256mb}"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    environment:
+      REDISCLI_AUTH: ${REDIS_CACHE_PASSWORD}
+    volumes:
+      - redis_cache_data:/data
+    # redis-cli desde tu maquina: 127.0.0.1:${REDIS_CACHE_PORT:-6380}.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_data"
+      - "traefik.tcp.routers.redis-cache.entrypoints=redis-cache"
+      - "traefik.tcp.routers.redis-cache.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.redis-cache.service=redis-cache"
+      - "traefik.tcp.services.redis-cache.loadbalancer.server.port=6379"
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  minio:
+    # La imagen oficial minio/minio dejo de publicarse el 2025-10-23 (repo
+    # archivado). Esta es la imagen mantenida de Chainguard, drop-in.
+    image: cgr.dev/chainguard/minio:latest
+    container_name: cms_sas_minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    # Consola y API desde tu maquina: 127.0.0.1:${MINIO_CONSOLE_PORT:-9001} y
+    # 127.0.0.1:${MINIO_PORT:-9000} (mc/aws desde el host).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_data"
+      - "traefik.tcp.routers.minio-console.entrypoints=minio-console"
+      - "traefik.tcp.routers.minio-console.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.minio-console.service=minio-console"
+      - "traefik.tcp.services.minio-console.loadbalancer.server.port=9001"
+      - "traefik.tcp.routers.minio-api.entrypoints=minio-api"
+      - "traefik.tcp.routers.minio-api.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.minio-api.service=minio-api"
+      - "traefik.tcp.services.minio-api.loadbalancer.server.port=9000"
+    networks:
+      - data
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # ------------------------------------------------------------------
+  # Provisioning one-shot: permisos, roles, migraciones, bootstrap
+  # ------------------------------------------------------------------
+  volume-init:
+    # Los named volumes nacen root-owned y la app corre como uid 10001, asi que
+    # el volumen compartido con Traefik arranca sin permiso de escritura.
+    # Si cambias el UID en backend/Dockerfile, cambialo aca tambien.
+    image: alpine:3.22
+    container_name: cms_sas_volume_init
+    user: "0:0"
+    command: ["sh", "-c", "mkdir -p /dynamic && chown -R 10001:10001 /dynamic && chmod 0755 /dynamic"]
+    volumes:
+      - traefik_dynamic:/dynamic
+    networks:
+      - data
+    restart: "no"
+    logging: *default-logging
+
+  db-roles:
+    # Idempotente y corre en cada `up`: mantiene los passwords de los roles
+    # sincronizados con el .env (los scripts de initdb solo corren la primera vez).
+    image: postgis/postgis:18-3.6-alpine
+    container_name: cms_sas_db_roles
+    entrypoint: ["/bin/sh", "/usr/local/bin/roles.sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_SUPERUSER}
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      PLATFORM_DB_PASSWORD: ${PLATFORM_DB_PASSWORD}
+    volumes:
+      - ./docker/postgres/roles.sh:/usr/local/bin/roles.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - data
+    restart: "no"
+    logging: *default-logging
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: cms_sas_migrate
+    command: ["sh", "-c", "alembic upgrade head && python -m app.bootstrap"]
+    environment:
+      <<: *app-env
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD}
+      FIRST_TENANT_SLUG: ${FIRST_TENANT_SLUG}
+      FIRST_TENANT_NAME: ${FIRST_TENANT_NAME}
+      FIRST_TENANT_ADMIN_EMAIL: ${FIRST_TENANT_ADMIN_EMAIL}
+      FIRST_TENANT_ADMIN_PASSWORD: ${FIRST_TENANT_ADMIN_PASSWORD}
+    volumes:
+      - ./backend:/code
+      - traefik_dynamic:/etc/traefik/dynamic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-roles:
+        condition: service_completed_successfully
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - data
+    restart: "no"
+    logging: *default-logging
+
+  # ------------------------------------------------------------------
+  # Aplicacion
+  # ------------------------------------------------------------------
+  fastapi:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    init: true
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      <<: *app-env
+      ROUTES_SYNC_ON_STARTUP: "true"
+    volumes:
+      - ./backend:/code
+      # La API escribe aca las reglas de dominios propios; Traefik las lee.
+      - traefik_dynamic:/etc/traefik/dynamic
+    depends_on:
+      <<: *db-depends
+      migrate:
+        condition: service_completed_successfully
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - edge
+      - backend
+      - data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_edge"
+      - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
+      # Router por path: util en desarrollo (http://localhost/api/...). En
+      # produccion el ruteo real es por Host y lo maneja el provider file.
+      - "traefik.http.routers.fastapi-path.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.fastapi-path.entrypoints=web"
+      - "traefik.http.routers.fastapi-path.service=fastapi"
+      - "traefik.http.routers.fastapi-path.priority=100"
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  arq-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: cms_sas_arq_worker
+    init: true
+    command: ["arq", "app.worker.WorkerSettings"]
+    environment: *app-env
+    volumes:
+      - ./backend:/code
+      - traefik_dynamic:/etc/traefik/dynamic
+    depends_on:
+      <<: *db-depends
+      migrate:
+        condition: service_completed_successfully
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+      - data
+    # El worker ARQ no sirve HTTP (la imagen backend trae el HEALTHCHECK de
+    # fastapi y por eso quedaba "unhealthy"): se usa el health check nativo de
+    # ARQ, que lee la clave de salud que el worker escribe en Redis.
+    healthcheck:
+      test: ["CMD", "arq", "app.worker.WorkerSettings", "--check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  nextjs:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    init: true
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      SAAS_BASE_DOMAIN: ${SAAS_BASE_DOMAIN}
+      # Llamada server-side: va por la red interna, nunca por el navegador.
+      INTERNAL_API_URL: http://fastapi:8000
+      # Llamada del navegador: relativa, mismo origen. Nunca hardcodear el host.
+      NEXT_PUBLIC_API_BASE: /api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      fastapi:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=cms_sas_edge"
+      - "traefik.http.services.nextjs.loadbalancer.server.port=3000"
+      - "traefik.http.routers.nextjs-path.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.nextjs-path.entrypoints=web"
+      - "traefik.http.routers.nextjs-path.service=nextjs"
+      - "traefik.http.routers.nextjs-path.priority=1"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # ------------------------------------------------------------------
+  # Backups
+  # ------------------------------------------------------------------
+  postgres-backup:
+    image: postgis/postgis:18-3.6-alpine
+    container_name: cms_sas_postgres_backup
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    environment:
+      # Rol migrador: puede leer todas las tablas sin depender de RLS.
+      DATABASE_URL: postgresql://saas_migrator:${MIGRATOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+    volumes:
+      - ./backups:/backups
+      - ./docker/backup/backup.sh:/usr/local/bin/backup.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Sin esto el primer dump corre antes de que db-roles fije el password del
+      # rol migrador (autenticacion fallida) y antes de que Alembic cree las
+      # tablas (dump vacio).
+      db-roles:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - data
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  # Borde: solo Traefik y quien deba ser alcanzable desde afuera.
+  edge:
+    name: cms_sas_edge
+    driver: bridge
+  # Comunicacion entre frontend y API.
+  backend:
+    name: cms_sas_backend
+    driver: bridge
+  # Datos: sin salida a internet. Docker descarta los puertos publicados de un
+  # contenedor que solo esta en redes internas, asi que el acceso desde el host
+  # lo da Traefik (entrypoints TCP minio-*/postgres/redis-*). El frontend no
+  # puede hablar con Postgres: no comparte red con `data`.
+  data:
+    name: cms_sas_data
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_broker_data:
+  redis_cache_data:
+  minio_data:
+  traefik_dynamic:

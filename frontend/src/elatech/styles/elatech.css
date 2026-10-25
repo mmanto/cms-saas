@@ -1,0 +1,251 @@
+/*
+ * Estilos del sitio ElaTech.
+ *
+ * La landing original era una app Vite con Tailwind v3. Aca se usa Tailwind v4
+ * con el mismo set de utilidades, pero SIN preflight global: la hoja se importa
+ * desde el layout raiz y el preflight tocaria el shell de la plataforma y los
+ * backoffices. En su lugar hay un reset propio, acotado a `.elatech-app`.
+ *
+ * Las clases de tipografia (`text-h*`, `text-body*`, `text-label`, `text-cta`,
+ * `text-nav`), `page-container` y `logo-elatech` vienen del `index.css` de la
+ * landing y se reproducen aca bajo el contenedor del sitio.
+ */
+
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Solo se escanean los archivos del sitio: las utilidades que usa el resto de
+   la app las genera su propia entrada (app/backoffice.css). */
+@source "../";
+
+/*
+ * Sin `@theme` a proposito: el tema de Tailwind v4 emite variables en `:root` y
+ * esta hoja se carga en todas las rutas. Los pocos tokens propios del sitio
+ * (colores y tipografia) se declaran bajo `.elatech-app`, y las utilidades que
+ * los usan viven en `@layer components`, acotadas al contenedor.
+ */
+
+@layer base {
+  .elatech-app {
+    --font-editorial: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    min-height: 100vh;
+    margin: 0;
+    background: #ffffff;
+    color: #0f172a;
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .elatech-app *,
+  .elatech-app *::before,
+  .elatech-app *::after {
+    box-sizing: border-box;
+    border-style: solid;
+    border-width: 0;
+  }
+
+  .elatech-app h1,
+  .elatech-app h2,
+  .elatech-app h3,
+  .elatech-app h4,
+  .elatech-app h5,
+  .elatech-app h6 {
+    margin: 0;
+    font-family: var(--font-editorial);
+    font-weight: 300;
+  }
+
+  .elatech-app p,
+  .elatech-app figure,
+  .elatech-app blockquote,
+  .elatech-app dl,
+  .elatech-app dd {
+    margin: 0;
+  }
+
+  .elatech-app ul,
+  .elatech-app ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .elatech-app a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  .elatech-app button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .elatech-app img,
+  .elatech-app svg,
+  .elatech-app video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .elatech-app input,
+  .elatech-app textarea {
+    margin: 0;
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  .elatech-app .text-h1 {
+    font-family: var(--font-editorial);
+    font-size: clamp(36px, 6vw, 80px);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    line-height: 1.12;
+  }
+
+  .elatech-app .text-h2 {
+    font-family: var(--font-editorial);
+    font-size: clamp(32px, 4vw, 56px);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    line-height: 1.12;
+  }
+
+  .elatech-app .text-h3 {
+    font-family: var(--font-editorial);
+    font-size: clamp(20px, 2.5vw, 28px);
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    line-height: 1.18;
+  }
+
+  .elatech-app .text-body {
+    font-family: var(--font-body);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  .elatech-app .text-body-small {
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+  }
+
+  .elatech-app .text-nav {
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .elatech-app .text-label {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .elatech-app .text-cta {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .elatech-app .page-container {
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .elatech-app .font-editorial {
+    font-family: var(--font-editorial);
+  }
+
+  /* Reemplaza `bg-background text-foreground`: el contenedor ya fija ambos. */
+  .elatech-app .elatech-page {
+    background: #ffffff;
+    color: #0f172a;
+  }
+
+  .elatech-app input:focus,
+  .elatech-app textarea:focus {
+    border-color: #2793b4;
+    box-shadow: 0 0 0 2px rgba(39, 147, 180, 0.2);
+    outline: none;
+  }
+
+  .elatech-app .logo-elatech {
+    margin: 0;
+    color: #ffffff;
+    font-family: var(--font-editorial);
+    font-size: clamp(2rem, 3vw, 2rem);
+    font-weight: 400;
+    font-feature-settings: "liga" 0;
+    letter-spacing: 0.15em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  @media (min-width: 1024px) {
+    .elatech-app .logo-elatech {
+      font-weight: 300;
+      letter-spacing: 0.2em;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .elatech-app .page-container {
+      width: calc(100% - 2rem);
+    }
+  }
+}
+
+@keyframes elatech-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes elatech-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.elatech-app .animate-slide-up {
+  animation: elatech-slide-up 0.5s ease-out forwards;
+}
+
+.elatech-app .animate-fade-in {
+  animation: elatech-fade-in 0.5s ease-out forwards;
+}

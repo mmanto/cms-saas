@@ -1,0 +1,21 @@
+# ============================================================================
+# Frontend Next.js - desarrollo con hot reload
+# ============================================================================
+FROM node:26-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libc6-compat
+
+COPY package.json ./
+RUN npm install --no-fund --no-audit
+
+COPY . .
+
+ENV NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 3000
+
+# -H 0.0.0.0 para que Traefik pueda alcanzarlo.
+CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]
