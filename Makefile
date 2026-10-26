@@ -19,8 +19,10 @@ help:
 	@echo "  ps        Estado de los servicios"
 	@echo "  urls      Muestra las URLs de acceso local"
 	@echo "  test      Corre los tests del backend"
-	@echo "  prod-up   Levanta el stack en produccion (DNS-01)"
-	@echo "  prod-down Baja el stack de produccion"
+	@echo "  prod-check   Valida el .env de produccion (dominio, DNS, credenciales ACME)"
+	@echo "  prod-up      Levanta el stack en produccion (valida el .env primero)"
+	@echo "  prod-verify  Certificado y ruteo del stack de produccion ya levantado"
+	@echo "  prod-down    Baja el stack de produccion"
 	@echo
 	@echo "  Accesos (desarrollo):"
 	@echo "    Admin SaaS:  $(ADMIN_URL)"
@@ -56,10 +58,19 @@ ps:
 test:
 	docker compose run --rm fastapi pytest -q
 
-prod-up:
+prod-check:
+	@./scripts/preflight-prod.sh
+
+prod-up: prod-check
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+	@echo
+	@echo "Levantado. El certificado se emite en los primeros minutos; verificalo con:"
+	@echo "  make prod-verify"
+
+prod-verify:
+	@./scripts/verify-prod.sh
 
 prod-down:
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
-.PHONY: help urls up down reset logs ps test prod-up prod-down
+.PHONY: help urls up down reset logs ps test prod-check prod-up prod-verify prod-down

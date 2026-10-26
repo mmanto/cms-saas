@@ -82,3 +82,68 @@ def test_sin_dominio_base_solo_quedan_los_dominios_propios(
 
     assert "saas-wildcard-web" not in document["http"]["routers"]
     assert tenant_announced(document, "tenant-norte-clubnorte-com-ar-web") == "norte"
+
+
+def test_el_wildcard_pide_un_certificado_con_su_san(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """El provider file espera ``domains`` como LISTA de bloques {main, sans}.
+
+    Con un objeto plano Traefik no pide ningun dominio ("no domain was given"):
+    el wildcard nunca se emite y todo queda con el certificado default.
+    """
+
+    class Settings:
+        saas_base_domain = "openpadel.app"
+        traefik_cert_resolver = "letsencrypt"
+        traefik_entrypoints = "web,websecure"
+
+    monkeypatch.setattr("app.provisioning.get_settings", Settings)
+    document = build_dynamic_config([])
+    routers = document["http"]["routers"]
+
+    tls = routers["saas-apex-web"]["tls"]
+    assert tls["certResolver"] == "letsencrypt"
+    assert tls["domains"] == [{"main": "openpadel.app", "sans": ["*.openpadel.app"]}]
+
+
+def test_admin_y_wildcard_habilitan_tls_con_el_certificado_del_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sin `tls: {}` el router no atiende el entrypoint 443: 404 en HTTPS."""
+
+    class Settings:
+        saas_base_domain = "openpadel.app"
+        traefik_cert_resolver = "letsencrypt"
+        traefik_entrypoints = "web,websecure"
+
+    monkeypatch.setattr("app.provisioning.get_settings", Settings)
+    document = build_dynamic_config([("clubnorte.com.ar", "norte")])
+    routers = document["http"]["routers"]
+    assert routers["saas-admin-web"]["tls"] == {}
+    assert routers["saas-admin-api"]["tls"] == {}
+    assert routers["saas-wildcard-web"]["tls"] == {}
+    assert routers["saas-wildcard-api"]["tls"] == {}
+
+    # El club de un dominio propio pide su propio certificado (una lista no:
+    # Traefik lo saca de la regla Host).
+    custom = routers["tenant-norte-clubnorte-com-ar-web"]["tls"]
+    assert custom == {"certResolver": "letsencrypt"}
+
+
+def test_sin_resolver_los_routers_quedan_solo_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """En desarrollo no hay 443: ningun router debe declarar TLS."""
+
+    class Settings:
+        saas_base_domain = "cms-sas.localhost"
+        traefik_cert_resolver = ""
+        traefik_entrypoints = "web"
+
+    monkeypatch.setattr("app.provisioning.get_settings", Settings)
+    document = build_dynamic_config([])
+
+    for router in document["http"]["routers"].values():
+        assert "tls" not in router
+

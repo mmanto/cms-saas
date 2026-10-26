@@ -68,18 +68,26 @@ def entrypoints() -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()] or ["web"]
 
 
-def _tls(*, issue_cert: bool = False, wildcard: bool = False) -> dict[str, Any]:
+def _tls(*, issue_cert: bool = False, wildcard: bool = False) -> dict[str, Any] | None:
+    """Bloque ``tls`` del router (``None`` = router solo HTTP)."""
     settings = get_settings()
     resolver = settings.traefik_cert_resolver.strip()
     if not resolver:
         # Desarrollo sin ACME: los routers quedan solo en el entrypoint HTTP.
-        return {}
+        return None
     if wildcard:
         base = normalize_host(settings.saas_base_domain)
-        return {"certResolver": resolver, "domains": {"main": base, "sans": [f"*.{base}"]}}
+        # El provider file espera una LISTA de bloques: `domains: [{main, sans}]`.
+        # Con un objeto plano Traefik lo ignora y pide el certificado sin
+        # dominios ("no domain was given"), asi que nunca emite el wildcard y
+        # todo el borde queda con el certificado self-signed por defecto.
+        return {"certResolver": resolver, "domains": [{"main": base, "sans": [f"*.{base}"]}]}
     if issue_cert:
         return {"certResolver": resolver}
     # Sin resolver propio: Traefik sirve el certificado wildcard del store.
+    # Tiene que ser un dict VACIO pero presente: `tls: {}` habilita TLS en el
+    # router. Si se omite la clave, el router no atiende el entrypoint 443 y
+    # responde 404 en HTTPS (admin.<base> y los clubes).
     return {}
 
 
@@ -88,7 +96,7 @@ def _router(
     rule: str,
     service: str,
     priority: int,
-    tls: dict[str, Any],
+    tls: dict[str, Any] | None,
     middlewares: list[str] | None = None,
 ) -> dict[str, Any]:
     router: dict[str, Any] = {
@@ -99,7 +107,7 @@ def _router(
     }
     if middlewares:
         router["middlewares"] = middlewares
-    if tls:
+    if tls is not None:
         router["tls"] = tls
     return router
 

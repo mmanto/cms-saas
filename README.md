@@ -226,17 +226,69 @@ DNS del dominio al servidor; el certificado lo emite el resolver por DNS-01.
 ## Produccion
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+make prod-check    # valida dominio, DNS y credenciales ACME antes de construir
+make prod-up       # build + up (corre prod-check primero)
+make prod-verify   # certificado emitido y ruteo por Host
 ```
 
-Antes, en el `.env`:
+Antes, en el `.env` del servidor:
 
-* `SAAS_BASE_DOMAIN=cms-sas.pro` (tu dominio real).
+* `SAAS_BASE_DOMAIN=<tu dominio real>` (ej. `cms-saas.pro`). **No puede quedar
+  en `*.localhost`**: los routers de Traefik se generan solo para ese Host, asi
+  que cualquier otro dominio (o la IP del servidor) responde el `404` de
+  Traefik y LetsEncrypt nunca puede emitir para esa TLD.
 * `ACME_EMAIL` y `ACME_DNS_PROVIDER` + credenciales del provider DNS.
   **DNS-01 es obligatorio**: es el unico desafio que permite emitir el
   wildcard `*.cms-sas.pro`. Con `httpChallenge` no se puede.
+  Para Cloudflare: `CF_DNS_API_TOKEN` (token con `Zone:DNS:Edit`) o
+  `CF_DNS_API_EMAIL` + `CF_DNS_API_KEY`.
 * Cambiar todos los secretos. `--force` rota los del `.env`, pero entonces hay
   que correr `docker compose up -d` para que `db-roles` actualice la base.
+
+### DNS y certificado
+
+Alcanza con dos registros DNS apuntando al servidor (o al proxy que llega a el):
+
+| Registro | Valor |
+|---|---|
+| `A`/`AAAA` `<base>` | IP del servidor |
+| `A`/`AAAA` `*.<base>` | misma IP |
+
+El router del apex pide un unico certificado para `<base>` con `*.<base>` como
+SAN; los routers de `admin.<base>` y de cada club usan ese certificado del
+store (no piden uno propio). El token del provider necesita editar la zona DNS
+de `<base>`.
+
+Si el DNS esta proxied en Cloudflare, el modo SSL/TLS tiene que ser
+**Full (strict)** o DNS-only: **Flexible** pelea con el redirect `80 -> 443`.
+
+### Si no hay certificado, o da 404
+
+El redirect `80 -> 443` es deliberado: en produccion no hay modo HTTP. Si el
+navegador avisa que el certificado no es valido y se acepta continuar, un `404`
+ya **no** es TLS: es un `Host` sin router (dominio base mal configurado, o se
+esta entrando por la IP). Diagnostico:
+
+```bash
+make prod-check     # dominio base, DNS y credenciales
+make prod-verify    # HTTP 308, ruteo de <base>/admin.<base>, emisor del cert
+
+# ruteo sin depender de DNS publico (desde el servidor):
+curl -sk -o /dev/null -w '%{http_code}\n' \
+  --resolve "cms-saas.pro:443:127.0.0.1" https://cms-saas.pro/
+curl -sk -o /dev/null -w '%{http_code}\n' \
+  --resolve "admin.cms-saas.pro:443:127.0.0.1" https://admin.cms-saas.pro/admin
+
+# que pidio ACME y por que fallo:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  logs --tail=300 traefik | grep -iE 'acme|error'
+```
+
+`routes.yml` vive en el volumen `traefik_dynamic`; se puede inspeccionar con:
+
+```bash
+docker run --rm -v cms-sas_traefik_dynamic:/d alpine:3.22 cat /d/routes.yml
+```
 
 En produccion no se publica ningun puerto de datos y el dashboard queda
 apagado. Las metricas de Prometheus viven en el puerto interno 8080 de Traefik:

@@ -40,6 +40,10 @@ services:
       # *.cms-sas.pro y para los dominios propios de cada club).
       - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+      # `dnsChallenge=true` explicito: sin esto el resolver queda sin desafio
+      # elegido y LetsEncrypt no emite (Traefik sirve su certificado default,
+      # que el navegador marca como invalido).
+      - "--certificatesresolvers.letsencrypt.acme.dnsChallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.provider=${ACME_DNS_PROVIDER}"
       - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
       - "--certificatesresolvers.letsencrypt.acme.dnsChallenge.propagation.delayBeforeChecks=30s"
@@ -55,6 +59,9 @@ services:
       # Variables del provider DNS elegido en ACME_DNS_PROVIDER.
       # Traefik solo lee las del provider activo.
       CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN:-}
+      # Alternativa al token: Global API Key + email (Cloudflare).
+      CF_DNS_API_EMAIL: ${CF_DNS_API_EMAIL:-}
+      CF_DNS_API_KEY: ${CF_DNS_API_KEY:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_REGION: ${AWS_REGION:-}
@@ -169,6 +176,19 @@ services:
           memory: 2G
 
   migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    # El bootstrap reescribe routes.yml en el volumen compartido. Sin estos
+    # overrides hereda el `x-app-env` de desarrollo (entrypoint `web`, sin
+    # resolver) y deja el borde con routers HTTP sin TLS hasta que arranca
+    # fastapi; si fastapi falla, Traefik queda asi (sin certificado y con
+    # redirect a un entrypoint sin routers validos).
+    environment:
+      ENVIRONMENT: production
+      TRAEFIK_ENTRYPOINTS: web,websecure
+      TRAEFIK_CERT_RESOLVER: letsencrypt
     volumes: !override
       - traefik_dynamic:/etc/traefik/dynamic
 
