@@ -65,8 +65,10 @@ check_marker docker-compose.prod.yml 'dnsChallenge=true' 'traefik con dnsChallen
 check_marker docker-compose.prod.yml 'HOSTINGER_API_TOKEN' 'compose pasa HOSTINGER_API_TOKEN'
 check_marker scripts/preflight-prod.sh 'hostinger)' 'preflight reconoce hostinger'
 check_marker frontend/app/admin/admin-sidebar.tsx "title: 'Portales'" 'admin renombrado a Portales'
+check_marker frontend/lib/env.ts 'BASE_TENANT' 'apex como portal (frontend)'
+check_marker backend/app/tenancy.py 'saas_base_tenant' 'apex como portal (backend)'
 
-for key in SAAS_BASE_DOMAIN ACME_DNS_PROVIDER ACME_EMAIL; do
+for key in SAAS_BASE_DOMAIN SAAS_BASE_TENANT ACME_DNS_PROVIDER ACME_EMAIL; do
     printf '    %-22s %s\n' "$key" "$(read_env "$key")"
 done
 for key in CF_DNS_API_TOKEN CF_DNS_API_KEY HOSTINGER_API_TOKEN AWS_SECRET_ACCESS_KEY; do

@@ -116,12 +116,14 @@ def build_dynamic_config(custom_domains: list[tuple[str, str]]) -> dict[str, Any
     """``custom_domains``: pares (host, slug) de los dominios propios.
 
     Cada router anuncia el club en ``TENANT_HEADER``: los de dominio propio con
-    su slug, los que no son de un club (apex, wildcard y ``admin.<base>``) vacio
-    (asi tapan cualquier header que invente el cliente). El frontend lee ese
-    valor del request. El frontend espeja los labels reservados en
-    ``lib/tenant.ts``.
+    su slug, ``admin.<base>`` y el wildcard vacio (asi tapan cualquier header
+    que invente el cliente) y el apex con ``SAAS_BASE_TENANT`` si el dominio
+    base es un portal, o vacio si es la landing de plataforma. El frontend lee
+    ese valor del request.
     """
-    base = normalize_host(get_settings().saas_base_domain)
+    settings = get_settings()
+    base = normalize_host(settings.saas_base_domain)
+    base_tenant = (getattr(settings, "saas_base_tenant", "") or "").strip().lower()
     routers: dict[str, Any] = {}
     middlewares: dict[str, Any] = {}
 
@@ -145,7 +147,7 @@ def build_dynamic_config(custom_domains: list[tuple[str, str]]) -> dict[str, Any
             service=WEB_SERVICE,
             priority=PRIORITY_WILDCARD_WEB,
             tls=_tls(wildcard=True),
-            slug="",
+            slug=base_tenant,
         )
         add_router(
             "saas-apex-api",
@@ -153,7 +155,7 @@ def build_dynamic_config(custom_domains: list[tuple[str, str]]) -> dict[str, Any
             service=API_SERVICE,
             priority=PRIORITY_WILDCARD_API,
             tls=_tls(),
-            slug="",
+            slug=base_tenant,
         )
         # El backoffice vive en su propio host: `admin` es un label reservado,
         # asi que ningun club puede resolver como ese club (ver

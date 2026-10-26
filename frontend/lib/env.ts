@@ -24,6 +24,14 @@ export const INTERNAL_API_URL: string =
   process.env.INTERNAL_API_URL || 'http://127.0.0.1:8000';
 
 /**
+ * Club que se sirve en el dominio base (apex). Vacio = la landing de
+ * plataforma. Lo setea el operador para que el propio gestor sea un portal
+ * (ej. elatech.io). El backend lo usa igual en `resolve_tenant`.
+ */
+export const BASE_TENANT: string | null =
+  process.env.SAAS_BASE_TENANT?.trim().toLowerCase() || null;
+
+/**
  * Instancia dedicada a un solo club (una app por club): si esta seteado, el
  * frontend sabe que club es y no deduce nada. Vacio = instancia compartida.
  */

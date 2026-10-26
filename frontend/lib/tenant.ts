@@ -1,4 +1,4 @@
-import { ADMIN_LABEL, BASE_DOMAIN, PINNED_TENANT } from './env';
+import { ADMIN_LABEL, BASE_DOMAIN, BASE_TENANT, PINNED_TENANT } from './env';
 
 /**
  * Header donde el borde anuncia el club (lo pone Traefik, no el cliente).
@@ -65,6 +65,11 @@ export function tenantFromRequest(
   tenantHeader: string | null | undefined,
 ): string | null {
   if (PINNED_TENANT) return PINNED_TENANT;
+
+  // El dominio base puede ser un portal (el del propio gestor). Se configura
+  // con SAAS_BASE_TENANT; si esta vacio, el apex es la landing de plataforma.
+  const clean = (host ?? '').split(':')[0]?.toLowerCase() ?? '';
+  if (BASE_TENANT && clean === BASE_DOMAIN.toLowerCase()) return BASE_TENANT;
 
   const fromHost = tenantFromHost(host);
   if (fromHost) return fromHost;

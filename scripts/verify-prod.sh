@@ -126,6 +126,19 @@ case "$admin_code" in
     *) fail "https://admin.$base/admin -> $admin_code" ;;
 esac
 
+# --- Apex como portal (SAAS_BASE_TENANT) ---------------------------------
+base_tenant=$(read_env SAAS_BASE_TENANT | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+if [ -n "$base_tenant" ]; then
+    body=$(curl -sk --max-time 8 --resolve "$base:443:127.0.0.1" "https://$base/api/v1/branding" 2>/dev/null || true)
+    tenant=$(printf '%s' "$body" | sed -n 's/.*"tenant":"\([^"]*\)".*/\1/p')
+    if [ "$tenant" = "$base_tenant" ]; then
+        ok "el apex resuelve al portal '$base_tenant'"
+    else
+        fail "el apex no resuelve a '$base_tenant' (branding: ${body:-sin respuesta})"
+        info "El club tiene que existir y estar activo; SAAS_BASE_TENANT tiene que llegar a fastapi y nextjs."
+    fi
+fi
+
 # --- Certificado servido --------------------------------------------------
 pem=$(echo | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername "$base" 2>/dev/null || true)
 issuer=$(printf '%s' "$pem" | openssl x509 -noout -issuer 2>/dev/null | tr -d '\r' || true)

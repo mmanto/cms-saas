@@ -68,6 +68,13 @@ servicios de la plataforma. Los routers de `admin.<base>` van con prioridad mas
 alta que el wildcard (`PRIORITY_ADMIN_WEB`/`_API`), porque el mismo host tambien
 matchea `Host(*.<base>)`.
 
+El **dominio base puede ser un portal en si mismo** (el del propio gestor):
+`SAAS_BASE_TENANT=<slug>` hace que el apex se resuelva como ese club y muestre
+su sitio en vez de la landing de plataforma. El backoffice sigue en
+`admin.<base>`. El club tiene que existir y estar activo, y el slug tiene que
+coincidir con el `club` del sitio en `frontend/src/<sitio>/site.tsx`. Vacio
+(default) = landing de plataforma.
+
 El certificado wildcard (`*.cms-sas.pro`) cubre a los clubes y al backoffice:
 no hace falta emitir uno aparte. El apex pide el certificado del dominio base
 con `*.base` como SAN (ver `_tls(wildcard=True)`). En produccion alcanza con
@@ -237,6 +244,8 @@ Antes, en el `.env` del servidor:
   en `*.localhost`**: los routers de Traefik se generan solo para ese Host, asi
   que cualquier otro dominio (o la IP del servidor) responde el `404` de
   Traefik y LetsEncrypt nunca puede emitir para esa TLD.
+* `SAAS_BASE_TENANT=<slug>` si el dominio base es el portal del propio gestor
+  (ej. `elatech` para `elatech.io`). Vacio = landing de plataforma.
 * `ACME_EMAIL` y `ACME_DNS_PROVIDER` + credenciales del provider DNS.
   **DNS-01 es obligatorio**: es el unico desafio que permite emitir el
   wildcard `*.cms-sas.pro`. Con `httpChallenge` no se puede.

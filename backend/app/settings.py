@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Los clubes viven en <slug>.<base>, el backoffice en admin.<base> y el
     # apex es la landing.
     saas_base_domain: str = "cms-sas.localhost"
+    # Slug del club que se sirve en el dominio base (apex). Vacio = landing de
+    # plataforma. Sirve para que el propio gestor sea un portal (ej. elatech.io).
+    saas_base_tenant: str = ""
     traefik_dynamic_dir: str = "/etc/traefik/dynamic"
     traefik_entrypoints: str = "web"
     traefik_cert_resolver: str = ""

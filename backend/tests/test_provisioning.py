@@ -147,3 +147,25 @@ def test_sin_resolver_los_routers_quedan_solo_http(
     for router in document["http"]["routers"].values():
         assert "tls" not in router
 
+
+def test_el_dominio_base_puede_ser_un_portal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Con SAAS_BASE_TENANT el apex anuncia ese club; admin y wildcard siguen vacios."""
+
+    class Settings:
+        saas_base_domain = "elatech.io"
+        saas_base_tenant = "elatech"
+        traefik_cert_resolver = ""
+        traefik_entrypoints = "web"
+
+    monkeypatch.setattr("app.provisioning.get_settings", Settings)
+    document = build_dynamic_config([])
+
+    assert tenant_announced(document, "saas-apex-web") == "elatech"
+    assert tenant_announced(document, "saas-apex-api") == "elatech"
+    assert tenant_announced(document, "saas-admin-web") == ""
+    assert tenant_announced(document, "saas-admin-api") == ""
+    assert tenant_announced(document, "saas-wildcard-web") == ""
+    assert tenant_announced(document, "saas-wildcard-api") == ""
+

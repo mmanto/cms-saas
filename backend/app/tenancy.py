@@ -19,6 +19,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Tenant, TenantDomain
+from app.settings import get_settings
 
 TENANT_GUC = "app.tenant_id"
 
@@ -84,6 +85,17 @@ async def resolve_tenant(
     normalized = normalize_host(host)
     if not normalized:
         return None
+
+    # El dominio base puede ser un portal en si mismo (el del gestor). Lo elige
+    # el operador con SAAS_BASE_TENANT; si esta vacio, el apex sigue siendo la
+    # landing de plataforma.
+    base = normalize_host(base_domain)
+    if base and normalized == base:
+        base_slug = get_settings().saas_base_tenant.strip().lower()
+        if base_slug:
+            tenant = await session.scalar(select(Tenant).where(Tenant.slug == base_slug))
+            if tenant is not None:
+                return tenant
 
     by_domain = await session.scalar(
         select(Tenant)

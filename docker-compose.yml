@@ -26,6 +26,7 @@ x-app-env: &app-env
   JWT_SECRET: ${JWT_SECRET}
   CREDENTIALS_KEY: ${CREDENTIALS_KEY}
   SAAS_BASE_DOMAIN: ${SAAS_BASE_DOMAIN}
+  SAAS_BASE_TENANT: ${SAAS_BASE_TENANT:-}
   TRAEFIK_DYNAMIC_DIR: /etc/traefik/dynamic
   TRAEFIK_ENTRYPOINTS: web
   TRAEFIK_CERT_RESOLVER: ""
@@ -445,6 +446,7 @@ services:
       NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: "1"
       SAAS_BASE_DOMAIN: ${SAAS_BASE_DOMAIN}
+      SAAS_BASE_TENANT: ${SAAS_BASE_TENANT:-}
       # Llamada server-side: va por la red interna, nunca por el navegador.
       INTERNAL_API_URL: http://fastapi:8000
       # Llamada del navegador: relativa, mismo origen. Nunca hardcodear el host.
