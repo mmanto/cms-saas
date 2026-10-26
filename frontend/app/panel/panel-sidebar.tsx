@@ -56,7 +56,7 @@ const NAV_ITEMS: NavItem[] = [
 export function PanelSidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const branding = useTenantBranding();
-  const clubName = branding?.display_name ?? 'Panel del club';
+  const clubName = branding?.display_name ?? 'Panel del portal';
   const clubSlug = branding?.tenant ?? 'Artículos';
 
   return (
@@ -135,7 +135,7 @@ export function PanelSidebar({ email }: { email: string }) {
               </Avatar>
               <div className="grid flex-1 text-left text-xs leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">{email}</span>
-                <span className="truncate text-muted-foreground">admin del club</span>
+                <span className="truncate text-muted-foreground">admin del portal</span>
               </div>
             </div>
           </SidebarMenuItem>

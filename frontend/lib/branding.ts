@@ -14,7 +14,7 @@ export interface Branding {
 export const FALLBACK_BRANDING: Branding = {
   tenant: '',
   status: 'active',
-  display_name: 'SaaS Clubes',
+  display_name: 'SaaS Portales',
   primary_color: '#4f7cff',
   logo_url: null,
 };

@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Panel del club',
-    template: '%s · Panel del club',
+    default: 'Panel del portal',
+    template: '%s · Panel del portal',
   },
 };
 

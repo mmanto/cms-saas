@@ -21,7 +21,7 @@ export function TenantForm() {
           name="slug"
           required
           pattern="[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?"
-          placeholder="clubprueba"
+          placeholder="portalprueba"
           autoComplete="off"
         />
         <span className="text-xs font-normal text-muted-foreground">
@@ -31,11 +31,11 @@ export function TenantForm() {
 
       <label className="grid gap-2 text-xs font-medium">
         Nombre
-        <Input name="name" required maxLength={200} placeholder="Club Prueba" />
+        <Input name="name" required maxLength={200} placeholder="Portal Prueba" />
       </label>
 
       <label className="grid gap-2 text-xs font-medium">
-        Email del admin del club
+        Email del admin del portal
         <Input
           name="admin_email"
           type="email"
@@ -69,7 +69,7 @@ export function TenantForm() {
       ) : null}
 
       <Button type="submit" className="justify-self-start">
-        Crear club
+        Crear portal
       </Button>
     </form>
   );

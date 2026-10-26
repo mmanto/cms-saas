@@ -47,7 +47,7 @@ export default async function ArticulosPage() {
             Artículos de {me.tenant.name}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Publicá, despublicá o editá los artículos del club.
+            Publicá, despublicá o editá los artículos del portal.
           </p>
         </div>
         <Button render={<Link href={`${PANEL_ARTICULOS}/nueva`} />}>
@@ -60,7 +60,7 @@ export default async function ArticulosPage() {
         <div className="rounded-xl border border-dashed p-8 text-center">
           <p className="text-sm font-medium">Todavía no hay artículos</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Creá la primera para que aparezca en el sitio del club.
+            Creá la primera para que aparezca en el sitio del portal.
           </p>
           <Button
             variant="outline"

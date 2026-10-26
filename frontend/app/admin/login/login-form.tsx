@@ -20,7 +20,7 @@ export function LoginForm({ expirado }: { expirado: boolean }) {
           <HugeiconsIcon icon={LayoutBottomIcon} strokeWidth={2} className="size-5" />
         </div>
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading heading-screen font-medium">SaaS Clubes</h1>
+          <h1 className="font-heading heading-screen font-medium">SaaS Portales</h1>
           <p className="text-xs text-muted-foreground">Backoffice de plataforma</p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export function LoginForm({ expirado }: { expirado: boolean }) {
       </div>
 
       <p className="text-center text-[0.625rem] text-muted-foreground">
-        SaaS Clubes · backoffice de plataforma
+        SaaS Portales · backoffice de plataforma
       </p>
     </form>
   );

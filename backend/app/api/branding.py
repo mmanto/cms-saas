@@ -111,7 +111,7 @@ async def tenant_branding(request: Request) -> dict[str, Any]:
             if tenant is None:
                 raise HTTPException(
                     status.HTTP_404_NOT_FOUND,
-                    detail=f"no hay ningun club configurado para el host {host!r}",
+                    detail=f"no hay ningun portal configurado para el host {host!r}",
                 )
             await bind_tenant(session, tenant.id)
             row = await session.get(TenantBranding, tenant.id)

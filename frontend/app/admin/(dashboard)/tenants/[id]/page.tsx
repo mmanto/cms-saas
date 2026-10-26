@@ -64,7 +64,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
           href="/admin"
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          ← Clubes
+          ← Portales
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <h1 className="font-heading heading-screen font-medium">{tenant.name}</h1>
@@ -160,7 +160,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
 
       <Section
         title="Módulos"
-        description="Los módulos conectables se encienden por club. Uno apagado no atiende su API y su sección no se pinta en el sitio."
+        description="Los módulos conectables se encienden por portal. Uno apagado no atiende su API y su sección no se pinta en el sitio."
       >
         <Table>
           <TableHeader>
@@ -206,12 +206,12 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
 
       <Section
         title="Zona de baja"
-        description="Borra el club, sus dominios, usuarios, branding y archivos. No se puede deshacer."
+        description="Borra el portal, sus dominios, usuarios, branding y archivos. No se puede deshacer."
       >
         <form action={deleteTenantAction}>
           <input type="hidden" name="tenant_id" value={tenant.id} />
           <Button type="submit" variant="destructive">
-            Eliminar club
+            Eliminar portal
           </Button>
         </form>
       </Section>

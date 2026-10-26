@@ -88,7 +88,7 @@ async def read_asset(name: str, ctx: TenantContext = Depends(tenant_context)) ->
     if asset is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
-            detail=f"el club no tiene el asset {clean_name(name)!r}",
+            detail=f"el portal no tiene el asset {clean_name(name)!r}",
         )
 
     data, stored_type = await get_bytes(asset.object_key)

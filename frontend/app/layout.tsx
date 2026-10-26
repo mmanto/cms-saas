@@ -26,8 +26,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const fontMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 const PLATFORM_METADATA: Metadata = {
-  title: 'SaaS Clubes',
-  description: 'Plataforma multi-tenant para clubes',
+  title: 'SaaS Portales',
+  description: 'Plataforma multi-tenant de portales',
 };
 
 /** Metadatos del club del request: los de su sitio, o los de la plataforma. */
@@ -119,7 +119,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </header>
         {branding.tenant !== '' && branding.status !== 'active' ? (
           <div style={{ padding: '0.75rem 1.5rem', background: '#3b1d1d', color: '#ffb4b4' }}>
-            este club esta inactivo: la API esta cerrada.
+            este portal esta inactivo: la API esta cerrada.
           </div>
         ) : null}
         {children}

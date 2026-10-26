@@ -14,7 +14,7 @@ import { loginAction } from '../actions';
 export function ClubLoginForm({ expirado }: { expirado: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(loginAction, {});
   const branding = useTenantBranding();
-  const clubName = branding?.display_name ?? 'Artículos del club';
+  const clubName = branding?.display_name ?? 'Artículos del portal';
 
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col gap-6">
@@ -35,7 +35,7 @@ export function ClubLoginForm({ expirado }: { expirado: boolean }) {
         )}
         <div className="flex flex-col gap-1">
           <h1 className="font-heading heading-screen font-medium">{clubName}</h1>
-          <p className="text-xs text-muted-foreground">Panel de artículos del club</p>
+          <p className="text-xs text-muted-foreground">Panel de artículos del portal</p>
         </div>
       </div>
 
@@ -43,7 +43,7 @@ export function ClubLoginForm({ expirado }: { expirado: boolean }) {
         <div className="flex flex-col gap-1">
           <h2 className="font-heading heading-section font-medium">Iniciar sesión</h2>
           <p className="text-xs/relaxed text-muted-foreground">
-            Entrá con tu usuario admin del club.
+            Entrá con tu usuario admin del portal.
           </p>
         </div>
 

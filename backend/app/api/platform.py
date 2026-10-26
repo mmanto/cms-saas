@@ -95,7 +95,7 @@ def _tenant_payload(tenant: Tenant) -> dict:
 async def _tenant_or_404(session: AsyncSession, tenant_id: uuid.UUID) -> Tenant:
     tenant = await session.get(Tenant, tenant_id)
     if tenant is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="club inexistente")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="portal inexistente")
     return tenant
 
 
@@ -155,7 +155,7 @@ async def create_tenant(
     host = f"{slug}.{base}"
 
     if await ctx.session.scalar(select(Tenant).where(Tenant.slug == slug)) is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="ya existe un club con ese slug")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="ya existe un portal con ese slug")
     if (
         await ctx.session.scalar(select(TenantDomain).where(TenantDomain.host == host))
         is not None
@@ -242,7 +242,7 @@ async def remove_domain(
     if domain.is_primary:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="no se puede borrar el dominio primario del club",
+            detail="no se puede borrar el dominio primario del portal",
         )
     await ctx.session.delete(domain)
     await ctx.session.flush()
@@ -381,7 +381,7 @@ async def patch_tenant_user(
     )
     if user is None:
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND, detail="usuario inexistente en ese club"
+            status.HTTP_404_NOT_FOUND, detail="usuario inexistente en ese portal"
         )
     if body.password is not None:
         user.password_hash = hash_password(body.password)

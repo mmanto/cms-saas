@@ -21,7 +21,7 @@ export default async function Home() {
       ? 'subdominio del dominio base'
       : tenant
         ? 'header del borde'
-        : 'sin club';
+        : 'sin portal';
 
   let apiStatus = 'sin verificar';
   try {
@@ -34,11 +34,11 @@ export default async function Home() {
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '4rem 1.5rem' }}>
       <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--brand)' }}>
-        {tenant ? `Club: ${tenant}` : 'Plataforma SaaS Clubes'}
+        {tenant ? `Portal: ${tenant}` : 'Plataforma SaaS Portales'}
       </h1>
       <p style={{ color: '#9aa4bf' }}>
         Host resuelto por Traefik: <code>{host}</code>
-        {tenant ? ` · club via ${tenantSource}` : ''}
+        {tenant ? ` · portal via ${tenantSource}` : ''}
       </p>
       <dl style={{ marginTop: '2rem', lineHeight: 1.9 }}>
         <dt style={{ color: '#9aa4bf' }}>Dominio base</dt>
@@ -51,13 +51,13 @@ export default async function Home() {
             {API_BASE}/v1/... (estado: {apiStatus})
           </code>
         </dd>
-        <dt style={{ color: '#9aa4bf' }}>Login del club</dt>
+        <dt style={{ color: '#9aa4bf' }}>Login del portal</dt>
         <dd>
           <code>POST {API_BASE}/v1/auth/login</code>
         </dd>
       </dl>
       <p style={{ marginTop: '2rem', color: '#9aa4bf', fontSize: '0.9rem' }}>
-        Este host es la landing de la plataforma: los clubes viven en{' '}
+        Este host es la landing de la plataforma: los portales viven en{' '}
         <code>&lt;slug&gt;.{BASE_DOMAIN}</code> y el backoffice en{' '}
         <code>{ADMIN_HOST}</code>.
       </p>

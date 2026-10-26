@@ -97,7 +97,7 @@ export function DomainForm({ tenantId }: { tenantId: string }) {
 
       <label className="grid gap-2 text-xs font-medium">
         Dominio propio
-        <Input name="host" required placeholder="clubnorte.com.ar" autoComplete="off" />
+        <Input name="host" required placeholder="portalnorte.com.ar" autoComplete="off" />
       </label>
 
       <Status state={state} />

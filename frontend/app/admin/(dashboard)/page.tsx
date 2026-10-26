@@ -38,9 +38,9 @@ export default async function AdminHome() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading heading-screen font-medium">Clubes</h1>
+          <h1 className="font-heading heading-screen font-medium">Portales</h1>
           <p className="text-sm text-muted-foreground">
-            Operá los clubes de la plataforma. Sesión: <span className="text-foreground">{me.email}</span>
+            Operá los portales de la plataforma. Sesión: <span className="text-foreground">{me.email}</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -52,14 +52,14 @@ export default async function AdminHome() {
           </form>
           <Button render={<Link href="/admin/tenants/new" />}>
             <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
-            Nuevo club
+            Nuevo portal
           </Button>
         </div>
       </div>
 
       {tenants.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Sin clubes todavía</p>
+          <p className="text-sm font-medium">Sin portales todavía</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Creá el primero para empezar a operar la plataforma.
           </p>

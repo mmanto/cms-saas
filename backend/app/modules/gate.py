@@ -19,7 +19,7 @@ from app.modules.state import is_enabled
 def _disabled(name: str) -> HTTPException:
     return HTTPException(
         status.HTTP_404_NOT_FOUND,
-        detail=f"el modulo {name} no esta habilitado en este club",
+        detail=f"el modulo {name} no esta habilitado en este portal",
     )
 
 

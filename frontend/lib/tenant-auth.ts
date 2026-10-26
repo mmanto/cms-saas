@@ -20,7 +20,7 @@ export async function clubRequest<T>(
   token?: string,
 ): Promise<T> {
   const host = forwardedHost(await headers());
-  if (host === '') throw new ClubApiError(400, 'no pude resolver el host del club');
+  if (host === '') throw new ClubApiError(400, 'no pude resolver el host del portal');
 
   const requestHeaders = new Headers(init.headers);
   requestHeaders.set('x-saas-host', host);

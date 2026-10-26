@@ -73,11 +73,11 @@ async def tenant_context(request: Request) -> AsyncIterator[TenantContext]:
             if tenant is None:
                 raise HTTPException(
                     status.HTTP_404_NOT_FOUND,
-                    detail=f"no hay ningun club configurado para el host {normalize_host(host)!r}",
+                    detail=f"no hay ningun portal configurado para el host {normalize_host(host)!r}",
                 )
             if tenant.status != "active":
                 raise HTTPException(
-                    status.HTTP_403_FORBIDDEN, detail="el club esta inactivo"
+                    status.HTTP_403_FORBIDDEN, detail="el portal esta inactivo"
                 )
             await bind_tenant(session, tenant.id)
             yield TenantContext(tenant=tenant, session=session, host=normalize_host(host))
@@ -107,11 +107,11 @@ async def current_tenant_user(
     """Autentica al usuario del club y valida que el token sea de ESE club."""
     claims = _claims(authorization)
     if claims.get("scope") != "tenant":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="el token no es de club")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="el token no es de portal")
     if claims.get("tid") != str(ctx.tenant.id):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            detail="el token pertenece a otro club",
+            detail="el token pertenece a otro portal",
         )
     user = await ctx.session.get(TenantUser, uuid.UUID(claims["sub"]))
     if user is None:
@@ -123,7 +123,7 @@ async def current_tenant_user(
 async def current_tenant_admin(ctx: TenantContext = Depends(current_tenant_user)) -> TenantContext:
     """Como ``current_tenant_user``, pero exige rol ``admin`` del club."""
     if ctx.user is None or ctx.user.role != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="hace falta rol admin del club")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="hace falta rol admin del portal")
     return ctx
 
 

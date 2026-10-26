@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: {
     default: 'Backoffice',
-    template: '%s · Backoffice SaaS Clubes',
+    template: '%s · Backoffice SaaS Portales',
   },
 };
 

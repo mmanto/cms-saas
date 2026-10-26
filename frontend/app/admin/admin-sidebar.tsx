@@ -36,7 +36,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    title: 'Clubes',
+    title: 'Portales',
     url: '/admin',
     icon: DashboardSquare01Icon,
     matches: (pathname) =>
@@ -44,7 +44,7 @@ const NAV_ITEMS: NavItem[] = [
       (pathname.startsWith('/admin/tenants/') && pathname !== '/admin/tenants/new'),
   },
   {
-    title: 'Nuevo club',
+    title: 'Nuevo portal',
     url: '/admin/tenants/new',
     icon: PlusSignIcon,
     matches: (pathname) => pathname === '/admin/tenants/new',
@@ -64,7 +64,7 @@ export function AdminSidebar({ email }: { email: string }) {
                 <HugeiconsIcon icon={LayoutBottomIcon} strokeWidth={2} className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">SaaS Clubes</span>
+                <span className="truncate font-medium">SaaS Portales</span>
                 <span className="truncate text-xs text-muted-foreground">Backoffice</span>
               </div>
             </SidebarMenuButton>

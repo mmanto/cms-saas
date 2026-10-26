@@ -62,7 +62,7 @@ export class ClubApiError extends Error {
 /** Mensaje para el usuario segun el status que devolvio la API del club. */
 export function clubMessageOf(error: unknown): string {
   if (!(error instanceof ClubApiError)) return 'error inesperado';
-  if (error.status === 404) return 'El modulo de artículos no esta habilitado en este club.';
+  if (error.status === 404) return 'El modulo de artículos no esta habilitado en este portal.';
   if (error.status === 401 || error.status === 403) return 'Sesion vencida: volve a entrar.';
   return error.message;
 }

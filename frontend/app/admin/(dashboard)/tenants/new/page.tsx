@@ -17,9 +17,9 @@ export default async function NewTenantPage() {
           href="/admin"
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          ← Clubes
+          ← Portales
         </Link>
-        <h1 className="mt-1 font-heading heading-screen font-medium">Nuevo club</h1>
+        <h1 className="mt-1 font-heading heading-screen font-medium">Nuevo portal</h1>
         <p className="text-sm text-muted-foreground">
           El dominio primario se crea como <code>&lt;slug&gt;.{BASE_DOMAIN}</code>.
         </p>

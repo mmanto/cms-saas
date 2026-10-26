@@ -20,20 +20,20 @@ interface Crumb {
   href?: string;
 }
 
-/** El nombre del club no esta en la URL: la ficha se rotula "Club". */
+/** El nombre del portal no esta en la URL: la ficha se rotula "Portal". */
 function crumbsFor(pathname: string): Crumb[] {
-  if (pathname === '/admin') return [{ label: 'Clubes' }];
+  if (pathname === '/admin') return [{ label: 'Portales' }];
 
   if (pathname === '/admin/tenants/new') {
-    return [{ label: 'Clubes', href: '/admin' }, { label: 'Nuevo club' }];
+    return [{ label: 'Portales', href: '/admin' }, { label: 'Nuevo portal' }];
   }
 
   if (pathname.startsWith('/admin/tenants/')) {
-    return [{ label: 'Clubes', href: '/admin' }, { label: 'Club' }];
+    return [{ label: 'Portales', href: '/admin' }, { label: 'Portal' }];
   }
 
   const last = pathname.split('/').filter(Boolean).pop();
-  return [{ label: 'Clubes', href: '/admin' }, { label: last ?? 'Backoffice' }];
+  return [{ label: 'Portales', href: '/admin' }, { label: last ?? 'Backoffice' }];
 }
 
 export function AdminHeader() {
