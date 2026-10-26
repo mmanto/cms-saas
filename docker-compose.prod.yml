@@ -68,6 +68,7 @@ services:
       AWS_HOSTED_ZONE_ID: ${AWS_HOSTED_ZONE_ID:-}
       GANDIV5_API_KEY: ${GANDIV5_API_KEY:-}
       HETZNER_API_KEY: ${HETZNER_API_KEY:-}
+      HOSTINGER_API_TOKEN: ${HOSTINGER_API_TOKEN:-}
     logging:
       driver: json-file
       options:

@@ -45,6 +45,22 @@ read_env() {
 
 have() { [ -n "$(read_env "$1")" ]; }
 
+# NS autoritativos de la zona. `getent` no consulta NS, asi que se usa la
+# primera herramienta disponible; como ultimo recurso, DNS sobre HTTPS.
+zone_ns() {
+    local name=$1
+    if command -v dig >/dev/null 2>&1; then
+        dig +short NS "$name" 2>/dev/null
+    elif command -v host >/dev/null 2>&1; then
+        host -t NS "$name" 2>/dev/null | awk '{print $4}'
+    elif command -v nslookup >/dev/null 2>&1; then
+        nslookup -type=NS "$name" 2>/dev/null | awk '/[Nn]ameserver/{print $NF}'
+    elif command -v curl >/dev/null 2>&1; then
+        curl -s --max-time 5 "https://dns.google/resolve?name=$name&type=NS" 2>/dev/null \
+            | grep -o '"data":"[^"]*"' | cut -d'"' -f4
+    fi
+}
+
 echo "Preflight de produccion ($ENV_FILE)"
 echo
 
@@ -96,11 +112,25 @@ else
 fi
 
 provider=$(read_env ACME_DNS_PROVIDER | tr '[:upper:]' '[:lower:]')
+if [ -n "$provider" ] && printf '%s' "$provider" | grep -q '[[:space:]]'; then
+    fail "ACME_DNS_PROVIDER tiene espacios o CR (¿CRLF?). Revisá: grep -n '^ACME_DNS_PROVIDER' $ENV_FILE | cat -A"
+fi
+provider=$(printf '%s' "$provider" | tr -d '[:space:]')
 if [ -z "$provider" ]; then
     fail "ACME_DNS_PROVIDER vacio: sin DNS-01 no se puede emitir el wildcard *.$base."
 else
     ok "provider DNS-01: $provider"
 fi
+
+# Un token con espacios, comillas o CRLF termina en un header Authorization
+# invalido (Cloudflare: 6111 "Invalid format for Authorization header").
+for key in CF_DNS_API_TOKEN CF_DNS_API_EMAIL CF_DNS_API_KEY HOSTINGER_API_TOKEN \
+    AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY GANDIV5_API_KEY HETZNER_API_KEY; do
+    value=$(read_env "$key")
+    if [ -n "$value" ] && printf '%s' "$value" | grep -q '[[:space:]]'; then
+        fail "$key tiene espacios/saltos de línea. Revisá $ENV_FILE (¿CRLF?): cat -A $ENV_FILE | grep $key"
+    fi
+done
 
 case "$provider" in
     cloudflare)
@@ -127,12 +157,54 @@ case "$provider" in
     hetzner)
         have HETZNER_API_KEY && ok "HETZNER_API_KEY definido" || fail "HETZNER_API_KEY vacio."
         ;;
+    hostinger)
+        have HOSTINGER_API_TOKEN && ok "HOSTINGER_API_TOKEN definido" || fail "Hostinger sin HOSTINGER_API_TOKEN (hPanel > Cuenta > API tokens)."
+        ;;
     "")
         ;;
     *)
-        warn "provider '$provider': este preflight no conoce sus variables; verificá que el contenedor traefik las reciba."
+        fail "provider '$provider' no reconocido por este preflight (soporta cloudflare, route53, gandiv5, hetzner, hostinger)."
         ;;
 esac
+
+# --- El provider tiene que ser el DNS autoritativo de la zona -------------
+# El TXT de _acme-challenge se escribe con la API del provider y LetsEncrypt lo
+# busca en los NS reales de la zona. Si no coinciden, el desafio DNS-01 falla
+# aunque el token sea valido.
+if [ -n "$base" ] && [ -n "$provider" ]; then
+    ns=$(zone_ns "$base" | tr '\n' ' ')
+    if [ -z "$ns" ]; then
+        warn "no pude leer los NS de $base: verificá que ACME_DNS_PROVIDER sea el DNS autoritativo."
+    else
+        case "$provider" in
+            cloudflare)
+                if printf '%s' "$ns" | grep -qiE '(^|[[:space:]])ns[0-9]*\.cloudflare\.com'; then
+                    ok "NS de $base en Cloudflare"
+                else
+                    fail "ACME_DNS_PROVIDER=cloudflare pero los NS de $base son: $ns"
+                    echo "      El TXT de _acme-challenge se escribiria en Cloudflare y LetsEncrypt"
+                    echo "      lo buscaria en esos NS: el desafio DNS-01 falla."
+                    echo "      Delegá la zona a Cloudflare, o usá el provider del DNS real."
+                    echo "      (Con ns1/ns2.dns-parking.com es ACME_DNS_PROVIDER=hostinger.)"
+                fi
+                ;;
+            route53)
+                if printf '%s' "$ns" | grep -qi 'awsdns'; then
+                    ok "NS de $base en Route 53"
+                else
+                    fail "ACME_DNS_PROVIDER=route53 pero los NS de $base no son de AWS: $ns"
+                fi
+                ;;
+            hostinger)
+                if printf '%s' "$ns" | grep -qiE 'dns-parking\.com|hostinger'; then
+                    ok "NS de $base en Hostinger"
+                else
+                    fail "ACME_DNS_PROVIDER=hostinger pero los NS de $base son: $ns"
+                fi
+                ;;
+        esac
+    fi
+fi
 
 # --- DNS ------------------------------------------------------------------
 # Sin registros no hay validacion DNS-01 (ni navegador que llegue al borde).
@@ -153,7 +225,9 @@ if [ -n "$base" ] && command -v getent >/dev/null 2>&1; then
         ok "DNS wildcard *.$base resuelve ($probe)"
     else
         fail "no hay wildcard DNS *.$base (probé $probe)."
-        echo "      Sin ese registro el subdominio de cada club y admin.$base no resuelven."
+        echo "      Creá un registro A  *  -> IP del servidor en el panel DNS de $base."
+        echo "      Sin ese registro admin.$base y cada <slug>.$base dan NXDOMAIN."
+        echo "      Si lo acabás de crear, esperá la propagación y repetí make prod-check."
     fi
 else
     warn "sin getent: no pude verificar DNS."
@@ -175,6 +249,8 @@ echo
 if [ "$errors" -gt 0 ]; then
     printf '\033[31m✗ %d error(es)\033[0m: no se levanta produccion.\n' "$errors"
     echo "  Corregí $ENV_FILE y volvé a correr 'make prod-up'."
+    echo "  El traefik que ya está corriendo conserva la config vieja: sus logs no"
+    echo "  reflejan este .env hasta que 'make prod-up' lo recree."
     echo "  Para saltear este chequeo: SKIP_PROD_CHECK=1 make prod-up"
     exit 1
 fi

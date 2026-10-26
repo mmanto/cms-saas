@@ -27,7 +27,7 @@ read_env() {
     sed -n "s/^[[:space:]]*${key}=//p" "$ENV_FILE" | tail -n 1
 }
 
-base=$(read_env SAAS_BASE_DOMAIN | tr '[:upper:]' '[:lower:]')
+base=$(read_env SAAS_BASE_DOMAIN | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
 base=${base#http://}; base=${base#https://}; base=${base%%/*}; base=${base%%:*}
 
 echo "Verificacion de produccion (${base:-SAAS_BASE_DOMAIN vacio})"
@@ -43,6 +43,56 @@ if ! "${DC[@]}" ps --services --status running 2>/dev/null | grep -qx traefik; t
     exit 1
 fi
 ok "contenedor traefik corriendo"
+
+traefik_cid=$("${DC[@]}" ps -q traefik 2>/dev/null | head -n1)
+
+# --- El contenedor tiene que reflejar el .env -----------------------------
+# Un `restart`, o un `make prod-up` que nunca llego a ejecutarse porque fallo
+# el preflight, deja traefik con el provider/credenciales viejos. Los logs
+# muestran el error anterior y parece que el .env no se aplico.
+traefik_cmd=$(docker inspect "$traefik_cid" --format '{{range .Config.Cmd}}{{println .}}{{end}}' 2>/dev/null || true)
+traefik_env=$(docker inspect "$traefik_cid" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null || true)
+running_provider=$(printf '%s' "$traefik_cmd" | sed -n 's/^--certificatesresolvers\.[^=]*\.dnsChallenge\.provider=//p' | head -n1)
+env_provider=$(read_env ACME_DNS_PROVIDER | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+
+container_token() {
+    printf '%s' "$traefik_env" | sed -n "s/^$1=//p" | tail -n1
+}
+
+if [ -z "$running_provider" ]; then
+    fail "el traefik corriendo no tiene DNS-01 (¿se levantó sin docker-compose.prod.yml?)."
+elif [ -n "$env_provider" ] && [ "$running_provider" != "$env_provider" ]; then
+    fail "el traefik corriendo usa provider '$running_provider', pero $ENV_FILE dice '$env_provider'."
+    info "El contenedor no se recreó: ${DC[*]} up -d --force-recreate traefik"
+else
+    ok "provider DNS-01 en ejecución: $running_provider"
+fi
+
+case "$running_provider" in
+    cloudflare)
+        if [ -n "$(container_token CF_DNS_API_TOKEN)" ]; then
+            value=$(container_token CF_DNS_API_TOKEN)
+            case "$value" in
+                *[[:space:]]*) fail "CF_DNS_API_TOKEN con espacios/saltos de linea: header Authorization invalido (Cloudflare 6111)." ;;
+                *) ok "CF_DNS_API_TOKEN presente (${#value} chars)" ;;
+            esac
+        elif [ -n "$(container_token CF_DNS_API_KEY)" ] && [ -n "$(container_token CF_DNS_API_EMAIL)" ]; then
+            ok "CF_DNS_API_EMAIL + CF_DNS_API_KEY presentes"
+        else
+            fail "Cloudflare sin CF_DNS_API_TOKEN ni CF_DNS_API_EMAIL+CF_DNS_API_KEY en el contenedor."
+        fi
+        ;;
+    hostinger)
+        value=$(container_token HOSTINGER_API_TOKEN)
+        if [ -z "$value" ]; then
+            fail "HOSTINGER_API_TOKEN vacio en el contenedor traefik."
+        elif printf '%s' "$value" | grep -q '[[:space:]]'; then
+            fail "HOSTINGER_API_TOKEN con espacios/saltos de linea."
+        else
+            ok "HOSTINGER_API_TOKEN presente (${#value} chars)"
+        fi
+        ;;
+esac
 
 # --- 80: redireccion al entrypoint TLS ------------------------------------
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Host: $base" http://127.0.0.1/ 2>/dev/null || true)
@@ -96,10 +146,9 @@ else
 fi
 
 # --- ACME store -----------------------------------------------------------
-cid=$("${DC[@]}" ps -q traefik 2>/dev/null | head -n1)
 acme_vol=""
-if [ -n "$cid" ]; then
-    acme_vol=$(docker inspect "$cid" --format '{{range .Mounts}}{{if eq .Destination "/acme"}}{{.Name}}{{end}}{{end}}' 2>/dev/null || true)
+if [ -n "$traefik_cid" ]; then
+    acme_vol=$(docker inspect "$traefik_cid" --format '{{range .Mounts}}{{if eq .Destination "/acme"}}{{.Name}}{{end}}{{end}}' 2>/dev/null || true)
 fi
 
 if [ -n "$acme_vol" ]; then

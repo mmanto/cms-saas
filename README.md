@@ -242,6 +242,10 @@ Antes, en el `.env` del servidor:
   wildcard `*.cms-sas.pro`. Con `httpChallenge` no se puede.
   Para Cloudflare: `CF_DNS_API_TOKEN` (token con `Zone:DNS:Edit`) o
   `CF_DNS_API_EMAIL` + `CF_DNS_API_KEY`.
+  Si la zona vive en Hostinger (`ns1/ns2.dns-parking.com`): `ACME_DNS_PROVIDER=hostinger`
+  y `HOSTINGER_API_TOKEN` (hPanel > Cuenta > API tokens). El provider tiene que
+  ser el DNS **autoritativo** de la zona: si no, el TXT de `_acme-challenge` se
+  escribe en un DNS que LetsEncrypt no consulta.
 * Cambiar todos los secretos. `--force` rota los del `.env`, pero entonces hay
   que correr `docker compose up -d` para que `db-roles` actualice la base.
 
@@ -283,6 +287,11 @@ curl -sk -o /dev/null -w '%{http_code}\n' \
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
   logs --tail=300 traefik | grep -iE 'acme|error'
 ```
+
+Si el log dice `429 ... too many failed authorizations`, los intentos fallidos
+con el provider anterior agotaron el limite de LetsEncrypt para ese dominio
+(1 hora por identificador). No es un problema de la config nueva: esperá el
+`retry after` que indica el mensaje y volvé a correr `make prod-up`.
 
 `routes.yml` vive en el volumen `traefik_dynamic`; se puede inspeccionar con:
 
