@@ -22,6 +22,7 @@ help:
 	@echo "  prod-check   Valida el .env de produccion (dominio, DNS, credenciales ACME)"
 	@echo "  prod-up      Levanta el stack en produccion (valida el .env primero)"
 	@echo "  prod-verify  Certificado y ruteo del stack de produccion ya levantado"
+	@echo "  prod-doctor  Diagnostico completo de solo lectura (codigo, borde, DNS, app, DB)"
 	@echo "  prod-down    Baja el stack de produccion"
 	@echo
 	@echo "  Accesos (desarrollo):"
@@ -70,7 +71,10 @@ prod-up: prod-check
 prod-verify:
 	@./scripts/verify-prod.sh
 
+prod-doctor:
+	@./scripts/diagnose-prod.sh
+
 prod-down:
 	docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
-.PHONY: help urls up down reset logs ps test prod-check prod-up prod-verify prod-down
+.PHONY: help urls up down reset logs ps test prod-check prod-up prod-verify prod-doctor prod-down
